@@ -21,12 +21,24 @@ class IntegerField(Field):
         super(IntegerField, self).__init__(name, ddl, primary_key, default)
 
 
+class BooleanField(Field):
+    def __init__(self, name=None, primary_key=False, default=None, ddl='boorealean'):
+        super(BooleanField, self).__init__(name, ddl, primary_key, default)
+
+class FloatField(Field):
+    def __init__(self, name=None, primary_key=False, default=None, ddl='real'):
+        super(FloatField, self).__init__(name, ddl, primary_key, default)
+
+class TextField(Field):
+    def __init__(self, name=None, primary_key=False, default=None, ddl='text'):
+        super(TextField, self).__init__(name, ddl, primary_key, default)
+
 class ModelMetaclass(type):
     def __new__(cls, name, bases, attrs):
         if name == 'Model':
             return type.__new__(cls, name, bases, attrs)
         tableName  = attrs.get('__table__', None) or name
-        mapping    = dict()
+        mapping    = dict()      
         fields     = []
         primaryKey = None
         for k, v in attrs.items():
@@ -98,16 +110,61 @@ class Model(dict, metaclass=ModelMetaclass):
         'find obj by primary key'
         rs = await db.select('%s where %s=?' % (cls.__select__, cls.__primary_key__),
                              [pk], 1)
-        if len(rs) == 0:
+        if rs is None or len(rs) == 0:
             return None
         return cls(**rs[0])
 
+    @classmethod
+    async def findAll(cls, where=None, args=None, **kw):
+        'find all objs and return list<obj>'
+        sql = [cls.__select__]
+        if args is None:
+            args = []
+        if where:
+            sql.append('where')
+            sql.append(where)
+        order_by = kw.get('order_by', None)
+        if order_by:
+            sql.append('order by')
+            sql.append(order_by)
+        limit = kw.get('limit', None)
+        if limit:
+            sql.append('limit')
+            if isinstance(limit, int):
+                sql.append('?')
+                args.append(limit)
+            elif isinstance(limit, tuple) and len(limit) == 2:
+                args.append('limit')
+                args.append((limit[0], limit[1]))
+            else:
+                raise AttributeError('limit len error')
+        
+        rs = await db.select('select * from %s' % (cls.__table__), [])
+        if len(rs) == 0:
+            return None
+        return [cls(**r) for r in rs]
+
     async def save(self):
+        'save obj in database'
         args = list(map(self.getValueOrDefault, self.__fields__))
         args.append(self.getValueOrDefault(self.__primary_key__))
         rows = await db.execute(self.__insert__, args)
         if rows != 1:
             logging.warn('failed to insert record : affect rows %s' % (rows))
 
+    async def update(self):
+        'update values of obj in database'
+        args = list(map(self.getValueOrDefault, self.__fields__))
+        args.append(self.getValueOrDefault(self.__primary_key__))
+        rows = await db.execute(self.__update__, args)
+        if rows != 1:
+            logging.warn('failed to update record : affect rows %s' % (rows))
 
-
+    @classmethod
+    async def remove(cls, pk):
+        'delete obj in database'
+        # args.append(self.getValueOrDefault(self.__primary_key__))
+        logging.warn('prepare remove %d' % (pk))
+        rows = await db.execute(cls.__delete__, [pk])
+        if rows != 1:
+            logging.warn('failed to delete record : affect rows %d' % (pk))

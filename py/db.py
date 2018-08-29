@@ -23,7 +23,7 @@ async def create_db_pool(loop, **kw):
 
 
 async def select(sql, args, size=None):
-    logging(sql, args)
+    # logging(sql, args)
     global __pool
     with (await __pool) as conn:
         cur = await conn.cursor(aiomysql.DictCursor)
@@ -32,8 +32,8 @@ async def select(sql, args, size=None):
             rs = await cur.fetchmany(size)
         else:
             rs = await cur.fetchall()
-        await cur.closes()
-        logging.info("rows return : ", len(rs))
+        await cur.close()
+        logging.info("rows return : %d", len(rs))
         return rs
 
 
@@ -42,7 +42,12 @@ async def execute(sql, args):
     global __pool
     with (await __pool) as conn:
         cur = await conn.cursor()
-        await cur.execute(sql.replace('?', '%s'), args)
-        affect = cur.rowcount
-        await cur.close()
-        return affect
+        try:
+            await cur.execute(sql.replace('?', '%s'), args)
+            affect = cur.rowcount
+            return affect
+        except aiomysql.DatabaseError as e:
+            print(e)
+        finally:
+            await cur.close()
+        

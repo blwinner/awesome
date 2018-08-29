@@ -24,7 +24,7 @@ def init_jinja2(app, **kw):
     )
     path = kw.get('path', None)
     if path is None:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), r'..\www\templates')
     logging.info('set jinja2 template path: %s' % path)
     env = Environment(loader=FileSystemLoader(path), **options)
     filters = kw.get('filters', None)
@@ -77,7 +77,7 @@ async def response_factory(app, handler):
                 resp.content_type = 'text/html;charset=utf-8'
                 return resp
         if isinstance(r, int) and r >= 100 and r < 600:
-            return web.Response(r)
+            return web.Response(body=r)
         if isinstance(r, tuple) and len(r) == 2:
             t, m = r
             if isinstance(t, int) and t >= 100 and t < 600:
@@ -107,16 +107,26 @@ async def init(loop):
                             port=configs['db']['port'], 
                             user=configs['db']['user'], 
                             password=configs['db']['password'],
-                            db=configs['db']['database'])
+                            database=configs['db']['database'])
     app = web.Application(loop=loop, middlewares=[logger_factory, response_factory])
     add_static(app)
     add_routes(app, 'handlers')
-    init_jinjia2(app, filters=dict(datetime=datetime_filter))
-    srv = await loop.create_server(app.make_handler(), '127.0.0.1', 9999)
+    init_jinja2(app, filters=dict(datetime=datetime_filter))
+    srv = await loop.create_server(app.make_handler(), 'localhost', 9999)
     logging.info('server started at http://192.168.8.60:9999')
-    return srv
+    return srv 
 
+async def test(loop):           
+    await db.create_db_pool(loop=loop, 
+                            host=configs['db']['host'], 
+                            port=configs['db']['port'], 
+                            user=configs['db']['user'], 
+                            password=configs['db']['password'],
+                            database=configs['db']['database'])
+    u = User(name='Test', email='test@example.com', passwd='1234567890', image='about:blank', admin=False)
+    await u.save()
 
 loop = asyncio.get_event_loop()
+#loop.run_until_complete(test(loop))
 loop.run_until_complete(init(loop))
 loop.run_forever()

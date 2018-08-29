@@ -2,7 +2,10 @@ import asyncio
 import inspect
 import os
 import logging
+import functools
+from apis import APIError
 from urllib import parse
+from aiohttp import web
 
 def get(path):
     """
@@ -41,7 +44,7 @@ def get_required_kw_args(fn):
     return tuple(args)
 
 
-def get_named_ke_args(fn):
+def get_named_kw_args(fn):
     args = []
     params = inspect.signature(fn).parameters
     for name, param in params.items():
@@ -52,19 +55,19 @@ def get_named_ke_args(fn):
 
 def has_named_kw_args(fn):
     params = inspect.signature(fn).parameters
-    for name, param in params.items():
+    for _, param in params.items():
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             return True
 
 
 def has_var_kw_args(fn):
     params = inspect.signature(fn).parameters
-    for name, params in params.items():
+    for _, params in params.items():
         if params.kind == inspect.Parameter.VAR_KEYWORD:
             return True
 
 
-def has_requests_arg(fn):
+def has_requests_args(fn):
     sig = inspect.signature(fn)
     params = sig.parameters
     found = False
@@ -84,8 +87,8 @@ class RequestHandler(object):
     def __init__(self, app, fn):
         self._app = app
         self._func = fn
-        self._has_request_arg = has_request_arg(fn)
-        self._has_var_kw_arg = has_var_kw_arg(fn)
+        self._has_request_arg = has_requests_args(fn)
+        self._has_var_kw_arg = has_var_kw_args(fn)
         self._has_named_kw_args = has_named_kw_args(fn)
         self._named_kw_args = get_named_kw_args(fn)
         self._required_kw_args = get_required_kw_args(fn)
@@ -147,8 +150,8 @@ def add_route(app, fn):
     path = getattr(fn, '__route__', None)
     if path is None or method is None:
         raise ValueError("@get or @post not defined in %s." % (str(fn)))
-    if not asycnio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
-        fn = asycnio.coroutine(fn)
+    if not asyncio.iscoroutinefunction(fn) and not inspect.isgeneratorfunction(fn):
+        fn = asyncio.coroutine(fn)
     app.router.add_route(method, path, RequestHandler(app, fn))
 
 
@@ -171,6 +174,6 @@ def add_routes(app, module_name):
 
 
 def add_static(app):
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-    app.router.add_static('/static/', path)
-    logging.info('add static %s => %s' % ('/static/', path))
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), r'..\www\static')
+    app.router.add_static(r'/www/static', path)
+    logging.info('add static %s => %s' % (r'/www/static', path))

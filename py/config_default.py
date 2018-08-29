@@ -1,6 +1,6 @@
 configs = {
     'db': {
-        'host' : '192.168.8.60',
+        'host' : 'localhost',
         'port' : 3306,
         'user' : 'root',
         'password' : 'root',
